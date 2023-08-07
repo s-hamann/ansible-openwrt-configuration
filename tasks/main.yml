@@ -1,0 +1,125 @@
+---
+- name: 'Configure system'
+  uci:
+    command: section
+    config: system
+    type: system
+    name: '@system[0]'
+    value: "{{ openwrt_config_system }}"
+  notify:
+    - _openwrt_uci_commit
+    - _openwrt_restart_system
+  when: "openwrt_config_system is defined"
+  tags:
+    - system
+
+# Note: The cron module requires python, for lineinfile we can use an
+# implementation that does not.
+- name: 'Reload kernel timezone on DST changes'
+  ansible.builtin.lineinfile:
+    path: '/etc/crontabs/root'
+    line: "{{ openwrt_dst_reload_time }} hwclock -u --systz"
+    regexp: '^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+hwclock -u --systz$'
+    create: true
+    owner: root
+    group: root
+    mode: 0600
+    state: "{{ (openwrt_dst_reload_time != false) | ternary('present', 'absent') }}"
+  notify: _openwrt_restart_cron
+  tags:
+    - system
+
+- name: 'Configure NTP'
+  uci:
+    command: section
+    config: system
+    section: timeserver
+    name: ntp
+    value: "{{ openwrt_config_ntp }}"
+  notify:
+    - _openwrt_uci_commit
+    - _openwrt_restart_ntpd
+  when: "openwrt_config_ntp is defined"
+  tags:
+    - ntp
+
+- name: 'Configure uhttpd'
+  uci:
+    command: section
+    config: uhttpd
+    section: uhttpd
+    name: "{{ item.key }}"
+    value: "{{ openwrt_config_uhttpd_section_defaults | combine(item.value) }}"
+  loop: "{{ openwrt_config_uhttpd | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  notify:
+    - _openwrt_uci_commit
+    - _openwrt_restart_uhttpd
+  when: "openwrt_config_uhttpd is defined"
+  tags:
+    - uhttpd
+
+- name: 'Configure uhttpd snake-oil certificate'
+  uci:
+    command: section
+    config: uhttpd
+    section: cert
+    name: defaults
+    value: "{{ openwrt_config_uhttpd_cert }}"
+  notify:
+    - _openwrt_uci_commit
+    - _openwrt_restart_uhttpd
+  when: "openwrt_config_uhttpd_cert is defined"
+  tags:
+    - uhttpd
+
+- name: 'Check last package lists update'
+  ansible.builtin.stat:
+    path: '/var/opkg-lists'
+  register: _opkg_lists
+  when: "openwrt_config_install_packages | count > 0"
+  tags:
+    - packages
+
+# Update package lists if they do not exist or are older than 30 minutes.
+- name: 'Update package lists'
+  ansible.builtin.command: 'opkg update'
+  changed_when: true
+  when: "_opkg_lists is not skipped and (not _opkg_lists.stat.exists or _opkg_lists.stat.mtime | int < (ansible_facts['openwrt_info']['localtime'] | default(ansible_facts['date_time']['epoch'])) - (30 * 60))"
+  tags:
+    - packages
+
+- name: 'Install packages'
+  community.general.opkg:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ openwrt_config_install_packages }}"
+  tags:
+    - packages
+
+- name: 'Remove packages'
+  community.general.opkg:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ openwrt_config_remove_packages }}"
+  tags:
+    - packages
+
+- name: 'Enable services'
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: "{{ ansible_facts['is_chroot'] | ternary(omit, 'started') }}"
+  loop: "{{ openwrt_config_enable_services }}"
+  tags:
+    - services
+
+- name: 'Disable services'
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: false
+    state: "{{ ansible_facts['is_chroot'] | ternary(omit, 'stopped') }}"
+  loop: "{{ openwrt_config_disable_services }}"
+  tags:
+    - services

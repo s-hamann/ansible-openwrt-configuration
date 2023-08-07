@@ -1,0 +1,6 @@
+---
+openwrt_config_install_packages: []
+openwrt_config_remove_packages: []
+openwrt_config_enable_services: []
+openwrt_config_disable_services: []
+openwrt_dst_reload_time: "{{ (openwrt_config_system['timezone'] | default('UTC') != 'UTC' or openwrt_config_system['zonename'] | default('UTC') != 'UTC') | ternary('1 4 1-13,25-31 3,4,10,11 sun', false) }}"

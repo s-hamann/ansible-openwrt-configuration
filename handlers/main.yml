@@ -1,0 +1,33 @@
+---
+- name: 'Commit changes to uci'
+  uci:
+    command: commit
+  listen: _openwrt_uci_commit
+
+- name: 'Restart system'
+  ansible.builtin.service:
+    name: system
+    state: restarted
+  when: "not ansible_facts['is_chroot']"
+  listen: _openwrt_restart_system
+
+- name: 'Restart ntpd'
+  ansible.builtin.service:
+    name: sysntpd
+    state: restarted
+  when: "not ansible_facts['is_chroot']"
+  listen: _openwrt_restart_ntpd
+
+- name: 'Restart uhttpd'
+  ansible.builtin.service:
+    name: uhttpd
+    state: restarted
+  when: "not ansible_facts['is_chroot']"
+  listen: _openwrt_restart_uhttpd
+
+- name: 'Restart cron'
+  ansible.builtin.service:
+    name: cron
+    state: restarted
+  when: "not ansible_facts['is_chroot']"
+  listen: _openwrt_restart_cron
