@@ -74,9 +74,10 @@
   tags:
     - uhttpd
 
-- name: 'Check last package lists update'
-  ansible.builtin.stat:
-    path: '/var/opkg-lists'
+- name: 'Check if package lists are recent'
+  ansible.builtin.command: 'find /var/opkg-lists -type f -mmin -30'
+  changed_when: false
+  check_mode: false
   register: _opkg_lists
   when: "openwrt_config_install_packages | count > 0"
   tags:
@@ -86,7 +87,7 @@
 - name: 'Update package lists'
   ansible.builtin.command: 'opkg update'
   changed_when: true
-  when: "_opkg_lists is not skipped and (not _opkg_lists.stat.exists or _opkg_lists.stat.mtime | int < (ansible_facts['openwrt_info']['localtime'] | default(ansible_facts['date_time']['epoch'])) - (30 * 60))"
+  when: "_opkg_lists is not skipped and _opkg_lists.stdout | length == 0"
   tags:
     - packages
 
