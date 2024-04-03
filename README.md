@@ -54,6 +54,19 @@ Role Variables
     When `timezone` and `zonename` are not set or set to `UTC` in `openwrt_config_system`, the cron job is also disabled by default.
     For more information, see:
     https://forum.openwrt.org/t/parental-control-times-not-dst-aware/92120
+* `openwrt_config_cronjobs`  
+    A list of cron jobs to set up.
+    Each list item may be:
+    1. A simple string that gets added to the `root` user's crontab.
+    2. A dictionary with the following keys:
+      * `time`  
+        A time specification as understood by cron.
+      * `user`  
+        The system user to run the cron job.
+        The user needs to exist on the system.
+        Defaults to `root`.
+      * `command`  
+        The command to run.
 
 Dependencies
 ------------
@@ -83,6 +96,11 @@ openwrt_config_uhttpd:
     listen_https:
       - 192.168.0.1:8443
     home: /www/other
+openwrt_config_cronjobs:
+  - '0 0 * * * echo midnight'
+  - time: '0 0 * * *'
+    user: root
+    command: 'echo midnight'
 ```
 
 License

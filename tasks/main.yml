@@ -125,3 +125,17 @@
   loop: "{{ openwrt_config_disable_services }}"
   tags:
     - services
+
+- name: 'Reload kernel timezone on DST changes'
+  ansible.builtin.lineinfile:
+    path: "/etc/crontabs/{{ item['user'] | default('root') }}"
+    line: "{% if item is mapping %}{{ item['time'] ~ ' ' ~ item['command'] }}{% else %}{{ item }}{% endif %}"
+    create: true
+    owner: "{{ item['user'] | default('root') }}"
+    group: "{{ item['user'] | default('root') }}"
+    mode: 0600
+    state: present
+  loop: "{{ openwrt_config_cronjobs }}"
+  notify: _openwrt_restart_cron
+  tags:
+    - cron
