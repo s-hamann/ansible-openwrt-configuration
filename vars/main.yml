@@ -1,5 +1,5 @@
 ---
 openwrt_config_uhttpd_section_defaults:
-  listen_http: "{{ ansible_facts['openwrt_interfaces']['lan']['ipv4-address'] | map(attribute='address') | map('regex_replace', '$', ':80') | list }}"
-  listen_https: "{{ ansible_facts['openwrt_interfaces']['lan']['ipv4-address'] | map(attribute='address') | map('regex_replace', '$', ':443') | list }}"
+  listen_http: "{{ ansible_facts['openwrt_interfaces']['lan']['ipv4-address'] | map(attribute='address') | map('ansible.builtin.regex_replace', '$', ':80') | list }}"
+  listen_https: "{{ ansible_facts['openwrt_interfaces']['lan']['ipv4-address'] | map(attribute='address') | map('ansible.builtin.regex_replace', '$', ':443') | list }}"
   redirect_https: true

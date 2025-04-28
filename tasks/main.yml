@@ -24,7 +24,7 @@
     owner: root
     group: root
     mode: 0600
-    state: "{{ (openwrt_dst_reload_time != false) | ternary('present', 'absent') }}"
+    state: "{{ (openwrt_dst_reload_time != false) | ansible.builtin.ternary('present', 'absent') }}"
   notify: _openwrt_restart_cron
   tags:
     - system
@@ -49,8 +49,8 @@
     config: uhttpd
     section: uhttpd
     name: "{{ item.key }}"
-    value: "{{ openwrt_config_uhttpd_section_defaults | combine(item.value) }}"
-  loop: "{{ openwrt_config_uhttpd | dict2items }}"
+    value: "{{ openwrt_config_uhttpd_section_defaults | ansible.builtin.combine(item.value) }}"
+  loop: "{{ openwrt_config_uhttpd | ansible.builtin.dict2items }}"
   loop_control:
     label: "{{ item.key }}"
   notify:
@@ -112,7 +112,7 @@
   ansible.builtin.service:
     name: "{{ item }}"
     enabled: true
-    state: "{{ ansible_facts['is_chroot'] | ternary(omit, 'started') }}"
+    state: "{{ ansible_facts['is_chroot'] | ansible.builtin.ternary(omit, 'started') }}"
   loop: "{{ openwrt_config_enable_services }}"
   tags:
     - services
@@ -121,7 +121,7 @@
   ansible.builtin.service:
     name: "{{ item }}"
     enabled: false
-    state: "{{ ansible_facts['is_chroot'] | ternary(omit, 'stopped') }}"
+    state: "{{ ansible_facts['is_chroot'] | ansible.builtin.ternary(omit, 'stopped') }}"
   loop: "{{ openwrt_config_disable_services }}"
   tags:
     - services
