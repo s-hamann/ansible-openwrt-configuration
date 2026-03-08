@@ -6,7 +6,8 @@ This role handles basic system configuration on [OpenWrt](https://www.openwrt.or
 Requirements
 ------------
 
-This role requires [gekmihesg's Ansible library for OpenWrt](https://github.com/gekmihesg/ansible-openwrt) on the Ansible controller.
+This role requires the [community.openwrt](https://github.com/ansible-collections/community.openwrt) collection on the Ansible controller.
+As it exclusively uses modules from this collection, Python is *not* required on the target system.
 
 Role Variables
 --------------

@@ -1,22 +1,22 @@
 ---
 - name: 'Configure system'
-  uci:
+  community.openwrt.uci:
     command: section
     config: system
     type: system
     name: '@system[0]'
     value: "{{ openwrt_config_system }}"
   notify:
-    - _openwrt_uci_commit
-    - _openwrt_restart_system
+    - openwrt_uci_commit
+    - openwrt_restart_system
   when: "openwrt_config_system is defined"
   tags:
     - system
 
-# Note: The cron module requires python, for lineinfile we can use an
-# implementation that does not.
+# Note: community.openwrt does not currently have an implementation of the cron
+# module. So we use lineinfile instead.
 - name: 'Reload kernel timezone on DST changes'
-  ansible.builtin.lineinfile:
+  community.openwrt.lineinfile:
     path: '/etc/crontabs/root'
     line: "{{ openwrt_dst_reload_time }} hwclock -u --systz"
     regexp: '^\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+hwclock -u --systz$'
@@ -25,26 +25,26 @@
     group: root
     mode: 0600
     state: "{{ (openwrt_dst_reload_time != false) | ansible.builtin.ternary('present', 'absent') }}"
-  notify: _openwrt_restart_cron
+  notify: openwrt_restart_cron
   tags:
     - system
 
 - name: 'Configure NTP'
-  uci:
+  community.openwrt.uci:
     command: section
     config: system
     section: timeserver
     name: ntp
     value: "{{ openwrt_config_ntp }}"
   notify:
-    - _openwrt_uci_commit
-    - _openwrt_restart_ntpd
+    - openwrt_uci_commit
+    - openwrt_restart_ntpd
   when: "openwrt_config_ntp is defined"
   tags:
     - ntp
 
 - name: 'Configure uhttpd'
-  uci:
+  community.openwrt.uci:
     command: section
     config: uhttpd
     section: uhttpd
@@ -54,62 +54,98 @@
   loop_control:
     label: "{{ item.key }}"
   notify:
-    - _openwrt_uci_commit
-    - _openwrt_restart_uhttpd
+    - openwrt_uci_commit
+    - openwrt_restart_uhttpd
   when: "openwrt_config_uhttpd is defined"
   tags:
     - uhttpd
 
 - name: 'Configure uhttpd snake-oil certificate'
-  uci:
+  community.openwrt.uci:
     command: section
     config: uhttpd
     section: cert
     name: defaults
     value: "{{ openwrt_config_uhttpd_cert }}"
   notify:
-    - _openwrt_uci_commit
-    - _openwrt_restart_uhttpd
+    - openwrt_uci_commit
+    - openwrt_restart_uhttpd
   when: "openwrt_config_uhttpd_cert is defined"
   tags:
     - uhttpd
 
-- name: 'Check if package lists are recent'
-  ansible.builtin.command: 'find /var/opkg-lists -type f -mmin -30'
-  changed_when: false
-  check_mode: false
-  failed_when: false
-  register: _opkg_lists
-  when: "openwrt_config_install_packages | count > 0"
-  tags:
-    - packages
+- name: 'Install/remove packages (opkg)'
+  when: "ansible_facts['pkg_mgr'] == 'opkg'"
+  block:
+    - name: 'Check if package lists are recent (opkg)'
+      community.openwrt.command:
+        cmd: 'find /var/opkg-lists -type f -mmin -30'
+      changed_when: false
+      check_mode: false
+      failed_when: false
+      register: _opkg_lists
+      when: "openwrt_config_install_packages | count > 0"
+      tags:
+        - packages
 
-# Update package lists if they do not exist or are older than 30 minutes.
-- name: 'Update package lists'
-  ansible.builtin.command: 'opkg update'
-  changed_when: true
-  when: "_opkg_lists is not skipped and _opkg_lists.stdout | length == 0"
-  tags:
-    - packages
+    # Update package lists if they do not exist or are older than 30 minutes.
+    - name: 'Update package lists (opkg)'
+      community.openwrt.command:
+        cmd: 'opkg update'
+      changed_when: true
+      when: "_opkg_lists is not skipped and _opkg_lists.stdout | length == 0"
+      tags:
+        - packages
 
-- name: 'Install packages'
-  community.general.opkg:
-    name: "{{ item }}"
-    state: present
-  loop: "{{ openwrt_config_install_packages }}"
-  tags:
-    - packages
+    - name: 'Install packages (opkg)'
+      community.openwrt.opkg:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ openwrt_config_install_packages }}"
+      tags:
+        - packages
 
-- name: 'Remove packages'
-  community.general.opkg:
-    name: "{{ item }}"
-    state: absent
-  loop: "{{ openwrt_config_remove_packages }}"
-  tags:
-    - packages
+    - name: 'Remove packages (opkg)'
+      community.openwrt.opkg:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ openwrt_config_remove_packages }}"
+      tags:
+        - packages
+
+- name: 'Install/remove packages (apk)'
+  when: "ansible_facts['pkg_mgr'] == 'apk'"
+  block:
+    - name: 'Check if package lists are recent (apk)'
+      community.openwrt.command:
+        cmd: 'find /var/cache/apk/ -type f -mmin -30'
+      changed_when: false
+      check_mode: false
+      failed_when: false
+      register: _apk_index
+      when: "openwrt_config_install_packages | count > 0"
+      tags:
+        - packages
+
+    - name: 'Install packages (apk)'
+      community.openwrt.apk:
+        name: "{{ item }}"
+        update_cache: "{{ _apk_index is not skipped and _apk_index.stdout | length == 0 }}"
+        state: present
+      loop: "{{ openwrt_config_install_packages }}"
+      tags:
+        - packages
+
+    - name: 'Remove packages (apk)'
+      community.openwrt.apk:
+        name: "{{ item }}"
+        state: absent
+      loop: "{{ openwrt_config_remove_packages }}"
+      tags:
+        - packages
 
 - name: 'Enable services'
-  ansible.builtin.service:
+  community.openwrt.service:
     name: "{{ item }}"
     enabled: true
     state: "{{ ansible_facts['is_chroot'] | ansible.builtin.ternary(omit, 'started') }}"
@@ -118,7 +154,7 @@
     - services
 
 - name: 'Disable services'
-  ansible.builtin.service:
+  community.openwrt.service:
     name: "{{ item }}"
     enabled: false
     state: "{{ ansible_facts['is_chroot'] | ansible.builtin.ternary(omit, 'stopped') }}"
@@ -127,7 +163,7 @@
     - services
 
 - name: 'Reload kernel timezone on DST changes'
-  ansible.builtin.lineinfile:
+  community.openwrt.lineinfile:
     path: "/etc/crontabs/{{ item['user'] | default('root') }}"
     line: "{% if item is mapping %}{{ item['time'] ~ ' ' ~ item['command'] }}{% else %}{{ item }}{% endif %}"
     create: true
@@ -136,6 +172,6 @@
     mode: 0600
     state: present
   loop: "{{ openwrt_config_cronjobs }}"
-  notify: _openwrt_restart_cron
+  notify: openwrt_restart_cron
   tags:
     - cron
